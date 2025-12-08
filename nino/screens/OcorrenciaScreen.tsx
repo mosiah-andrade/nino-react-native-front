@@ -27,8 +27,8 @@ const [ocorrencias] = useState<Ocorrencia[]>([
     },
     {
         id: '2',
-        tipo: 'Infração',
-        descricao: 'Excesso de velocidade',
+        tipo: 'Incendio',
+        descricao: 'Apartamento em chamas',
         data: '14/01/2024',
         hora: '10:15',
         status: 'pendente',
