@@ -4,9 +4,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
-// Importe suas telas
 import LoginScreen from './screens/LoginScreen';
 import HomeScreen from './screens/HomeScreen';
+import OcorrenciaScreen from './screens/OcorrenciaScreen'; 
 // import OcorrenciasScreen from './screens/OcorrenciasScreen';
 // import PerfilScreen from './screens/PerfilScreen';
 
@@ -23,18 +23,18 @@ function AppTabs() {
       }}
     >
       <Tab.Screen 
-        name="HomeTab" // Usei um nome diferente para não confundir
+        name="Home" // Usei um nome diferente para não confundir
         component={HomeScreen} 
         options={{ tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} /> }}
       />
       <Tab.Screen 
-        name="OcorrenciasTab" 
+        name="Ocorrencias" 
         // component={OcorrenciasScreen} 
-        component={HomeScreen} 
+        component={OcorrenciaScreen} 
         options={{ tabBarIcon: ({ color }) => <Ionicons name="document-text" size={24} color={color} /> }}
       />
       <Tab.Screen 
-        name="PerfilTab" 
+        name="Perfil" 
         // component={PerfilScreen} 
         component={HomeScreen} 
         options={{ tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} /> }}
