@@ -1,3 +1,13 @@
+# Expo
+.expo/
+.expo-shared/
+
+# Metro cache
+.expo/web-build/
+.expo/pages/
+.expo/.cache/
+.expo/metro-cache/
+
 # Logs
 logs
 *.log
