@@ -105,10 +105,10 @@ export default function EditarPerfilScreen() {
                 telefone: formData.telefone,
                 senha: formData.senha || undefined,
             });
-            
+
             // Atualizar dados no contexto
             await refreshUser();
-            
+
             Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
             navigation.goBack();
         } catch (error: any) {
@@ -172,7 +172,7 @@ export default function EditarPerfilScreen() {
                             <EditableField
                                 label="Email"
                                 value={formData.email}
-                                onChangeText={() => {}}
+                                onChangeText={() => { }}
                                 editable={false}
                             />
                             <EditableField

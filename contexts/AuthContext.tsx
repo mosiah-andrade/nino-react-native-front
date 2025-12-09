@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi, LoginResponse, UserProfile } from '../services/api';
 
-interface User extends UserProfile {}
+interface User extends UserProfile { }
 
 interface AuthContextData {
     user: User | null;
