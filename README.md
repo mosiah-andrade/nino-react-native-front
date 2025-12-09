@@ -1,4 +1,4 @@
-# ![Logo](nino/assets/logo.png)
+# ![Logo](assets/logo.png)
 
 Bem vindo ao frontend do Nino, aplicativo do usuário que permite a interaçãp com a API de backend ([text](https://github.com/brunnapontual/nino-backend-ts-mongo.git))
 
