@@ -1,7 +1,6 @@
 # ![Logo](assets/logo.png)
 
-Bem vindo ao frontend do Nino, aplicativo do usuário que permite a interaçãp com a API de backend ([text](https://github.com/brunnapontual/nino-backend-ts-mongo.git))
-
+Bem vindo ao frontend do Nino, aplicativo do usuário que permite a interação com a API de backend 🌐 [nino-backend-ts-mongo](https://github.com/brunnapontual/nino-backend-ts-mongo.git)  
 Desenvolvido com **React Native** + **TypeScript**, e oferece todos os recursos da plataforma Nino em dispositivos **iOS** e **Android**.  
 <p align="center">
   <img src="https://img.shields.io/badge/React_Native-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="Badge React Native" />
