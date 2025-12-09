@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, ScrollView, Modal, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { ocorrenciasApi, Ocorrencia as OcorrenciaAPI } from '../services/api';
 
 interface Ocorrencia {
   id: string;
@@ -8,39 +10,85 @@ interface Ocorrencia {
   descricao: string;
   data: string;
   hora: string;
+  viatura: string;
+  equipe: string;
   status: 'sincronizada' | 'pendente';
+  // Dados completos para navegação
+  dataHora: string;
+  fotos?: string[];
+  localizacao?: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    capturedAt?: string;
+  };
+  assinatura?: string;
 }
 
 const OcorrenciaScreen = () => {
+  const navigation = useNavigation<any>();
   const [searchText, setSearchText] = useState('');
   const [filterStatus, setFilterStatus] = useState<'todas' | 'sincronizada' | 'pendente'>('todas');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [novaOcorrencia, setNovaOcorrencia] = useState({
-    tipo: '',
-    descricao: '',
-    data: '',
-    hora: '',
-  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // mock
-  const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([
-    {
-      id: '1',
-      tipo: 'Acidente',
-      descricao: 'Colisão entre veículos',
-      data: '15/01/2024',
-      hora: '14:30',
-      status: 'sincronizada',
-    },
-    {
-      id: '2',
-      tipo: 'Incendio',
-      descricao: 'Apartamento em chamas',
-      data: '14/01/2024',
-      hora: '10:15',
-      status: 'pendente',
-    },
-  ]);
+  const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
+
+  // Função para converter data da API para formato de exibição
+  const formatDateFromAPI = (dateString: string): { data: string; hora: string } => {
+    const date = new Date(dateString);
+    const data = date.toLocaleDateString('pt-BR');
+    const hora = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return { data, hora };
+  };
+
+  // Função para converter ocorrências da API para o formato local
+  const convertFromAPI = (apiOcorrencias: OcorrenciaAPI[]): Ocorrencia[] => {
+    return apiOcorrencias.map((oc) => {
+      const { data, hora } = formatDateFromAPI(oc.dataHora);
+      return {
+        id: oc._id,
+        tipo: oc.tipo,
+        descricao: oc.descricao,
+        data,
+        hora,
+        viatura: oc.viatura,
+        equipe: oc.equipe,
+        status: oc.statusSync === 'sincronizado' ? 'sincronizada' : 'pendente',
+        // Dados completos para navegação
+        dataHora: oc.dataHora,
+        fotos: oc.fotos,
+        localizacao: oc.localizacao,
+        assinatura: oc.assinaturaVitimado || oc.assinaturaTestemunha,
+      };
+    });
+  };
+
+  // Carregar ocorrências da API
+  const carregarOcorrencias = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const dados = await ocorrenciasApi.listar();
+      setOcorrencias(convertFromAPI(dados));
+    } catch (error: any) {
+      console.error('Erro ao carregar ocorrências:', error);
+      Alert.alert('Erro', error.message || 'Não foi possível carregar as ocorrências');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Carregar ao montar o componente
+  useEffect(() => {
+    carregarOcorrencias();
+  }, [carregarOcorrencias]);
+
+  // Pull to refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await carregarOcorrencias();
+    setRefreshing(false);
+  }, [carregarOcorrencias]);
 
   const filteredOcorrencias = ocorrencias.filter((item) => {
     const matchesSearch =
@@ -52,61 +100,30 @@ const OcorrenciaScreen = () => {
 
     return matchesSearch && matchesFilter;
   });
-  const formatDateFromInput = (dateString: string) => {
-    if (!dateString) return '';
-    const [year, month, day] = dateString.split('-');
-    return `${day}/${month}/${year}`;
-  };
-  const formatDateToInput = (dateString: string) => {
-    if (!dateString) return '';
-    const [day, month, year] = dateString.split('/');
-    return `${year}-${month}-${day}`;
-  };
-  const formatTimeFromInput = (timeString: string) => {
-    return timeString;
-  };
 
-  const handleRegistrarOcorrencia = () => {
-    if (!novaOcorrencia.tipo.trim()) {
-      Alert.alert('Erro', 'Por favor, preencha o tipo de ocorrência');
-      return;
-    }
-    if (!novaOcorrencia.descricao.trim()) {
-      Alert.alert('Erro', 'Por favor, preencha a descrição');
-      return;
-    }
-    if (!novaOcorrencia.data.trim()) {
-      Alert.alert('Erro', 'Por favor, preencha a data');
-      return;
-    }
-    if (!novaOcorrencia.hora.trim()) {
-      Alert.alert('Erro', 'Por favor, preencha a hora');
-      return;
-    }
-
-    const newId = (Math.max(...ocorrencias.map(o => parseInt(o.id)), 0) + 1).toString();
-    const ocorrenciaCompleta: Ocorrencia = {
-      id: newId,
-      tipo: novaOcorrencia.tipo,
-      descricao: novaOcorrencia.descricao,
-      data: novaOcorrencia.data,
-      hora: novaOcorrencia.hora,
-      status: 'pendente',
-    };
-
-    setOcorrencias([ocorrenciaCompleta, ...ocorrencias]);
-    setNovaOcorrencia({ tipo: '', descricao: '', data: '', hora: '' });
-    setModalVisible(false);
-    Alert.alert('Sucesso', 'Ocorrência registrada com sucesso!');
-  };
-
-  const handleFecharModal = () => {
-    setNovaOcorrencia({ tipo: '', descricao: '', data: '', hora: '' });
-    setModalVisible(false);
+  const handleVerDetalhes = (item: Ocorrencia) => {
+    navigation.navigate('DetalheOcorrencia', {
+      ocorrencia: {
+        id: item.id,
+        tipo: item.tipo,
+        dataHora: item.dataHora,
+        viatura: item.viatura,
+        equipe: item.equipe,
+        descricao: item.descricao,
+        fotos: item.fotos,
+        localizacao: item.localizacao,
+        assinatura: item.assinatura,
+        status: item.status,
+      },
+    });
   };
 
   const renderCard = ({ item }: { item: Ocorrencia }) => (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => handleVerDetalhes(item)}
+      activeOpacity={0.7}
+    >
       <View style={styles.cardHeader}>
         <Text style={styles.cardTipo}>{item.tipo}</Text>
         <View
@@ -129,12 +146,17 @@ const OcorrenciaScreen = () => {
           {item.data} às {item.hora}
         </Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
     <>
-      <ScrollView style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#e66430']} />
+        }
+      >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Ocorrencias</Text>
           <TouchableOpacity>
@@ -175,139 +197,39 @@ const OcorrenciaScreen = () => {
           ))}
         </View>
 
-        <FlatList
-          data={filteredOcorrencias}
-          renderItem={renderCard}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
-          scrollEnabled={false}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="document-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>Nenhuma ocorrência encontrada</Text>
-            </View>
-          }
-        />
+        {isLoading && !refreshing ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#e66430" />
+            <Text style={styles.loadingText}>Carregando ocorrências...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredOcorrencias}
+            renderItem={renderCard}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContainer}
+            scrollEnabled={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Ionicons name="document-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>Nenhuma ocorrência encontrada</Text>
+              </View>
+            }
+          />
+        )}
         <TouchableOpacity
           style={styles.registerButton}
-          onPress={() => setModalVisible(true)}
+          onPress={() => navigation.navigate('NovaOcorrencia')}
         >
           <Ionicons name="add-circle" size={20} color="#fff" />
           <Text style={styles.registerButtonText}>Registrar Nova Ocorrência</Text>
         </TouchableOpacity>
       </ScrollView>
-
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={handleFecharModal}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalContainer}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={handleFecharModal}>
-                <Ionicons name="close" size={28} color="#333" />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>Nova Ocorrência</Text>
-              <View style={{ width: 28 }} />
-            </View>
-
-            <ScrollView style={styles.modalFormContainer}>
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Tipo de Ocorrência *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: Acidente, Incêndio..."
-                  placeholderTextColor="#999"
-                  value={novaOcorrencia.tipo}
-                  onChangeText={(text) =>
-                    setNovaOcorrencia({ ...novaOcorrencia, tipo: text })
-                  }
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Descrição *</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Descreva os detalhes da ocorrência..."
-                  placeholderTextColor="#999"
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                  value={novaOcorrencia.descricao}
-                  onChangeText={(text) =>
-                    setNovaOcorrencia({ ...novaOcorrencia, descricao: text })
-                  }
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Data *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="DD/MM/YYYY"
-                  placeholderTextColor="#999"
-                  value={novaOcorrencia.data}
-                  onChangeText={(text) => {
-                    // formatacao de data, a gnt pode melhorar adicionado datapicker mobile
-                    let formatted = text.replace(/\D/g, '');
-                    if (formatted.length >= 2) {
-                      formatted = formatted.slice(0, 2) + '/' + formatted.slice(2);
-                    }
-                    if (formatted.length >= 5) {
-                      formatted = formatted.slice(0, 5) + '/' + formatted.slice(5, 9);
-                    }
-                    setNovaOcorrencia({ ...novaOcorrencia, data: formatted });
-                  }}
-                  maxLength={10}
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Hora *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="HH:MM"
-                  placeholderTextColor="#999"
-                  value={novaOcorrencia.hora}
-                  onChangeText={(text) => {
-                    // formatacao de hora, a gnt pode melhorar adicionado timepicker mobile
-                    let formatted = text.replace(/\D/g, '');
-                    if (formatted.length >= 2) {
-                      formatted = formatted.slice(0, 2) + ':' + formatted.slice(2, 4);
-                    }
-                    setNovaOcorrencia({ ...novaOcorrencia, hora: formatted });
-                  }}
-                  maxLength={5}
-                />
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.cancelButton]}
-                onPress={handleFecharModal}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.submitButton]}
-                onPress={handleRegistrarOcorrencia}
-              >
-                <Text style={styles.submitButtonText}>Registrar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </>
   );
 };
+
+export default OcorrenciaScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -348,6 +270,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingBottom: 60,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 12,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   sectionTitle: {
     fontSize: 18,
@@ -463,92 +400,4 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 16,
   },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '90%',
-    paddingBottom: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  modalFormContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  formGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#f7fafc',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#333',
-  },
-  textArea: {
-    minHeight: 100,
-    paddingTop: 10,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#f7fafc',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
-  submitButton: {
-    backgroundColor: '#e66430',
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
 });
-
-export default OcorrenciaScreen;

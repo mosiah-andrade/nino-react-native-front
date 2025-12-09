@@ -1,29 +1,39 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import Checkbox from 'expo-checkbox';
 import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../contexts/AuthContext';
 
 function LoginForm() {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [isChecked, setChecked] = useState(false);
-    const navigation = useNavigation<any>();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isChecked, setChecked] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const navigation = useNavigation<any>();
+  const { login } = useAuth();
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Simples validação
     if (!password || !email) {
       Alert.alert('Erro', 'Preencha todos os campos!');
       return;
     }
-    
-    // Aqui você enviaria os dados para sua API
-    console.log({ password, email });
-    navigation.replace('MainApp');
+
+    setIsLoading(true);
+
+    try {
+      await login(email, password);
+      navigation.replace('MainApp');
+    } catch (error: any) {
+      Alert.alert('Erro', error.message || 'Erro ao fazer login. Verifique suas credenciais.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <View style={styles.container}>
-        <TextInput
+      <TextInput
         style={styles.input}
         placeholder="E-mail"
         value={email}
@@ -35,7 +45,7 @@ function LoginForm() {
         style={styles.input}
         placeholder="senha"
         value={password}
-        onChangeText={setPassword} 
+        onChangeText={setPassword}
         secureTextEntry={true}
       />
 
@@ -46,18 +56,23 @@ function LoginForm() {
           color={isChecked ? '#4630EB' : undefined} // Cor quando marcado
         />
         <Text>
-            Manter Logado
+          Manter Logado
         </Text>
-       </View>
+      </View>
 
-      <TouchableOpacity 
-        style={styles.button} 
+      <TouchableOpacity
+        style={[styles.button, isLoading && styles.buttonDisabled]}
         onPress={handleSubmit}
         activeOpacity={0.7} // Define a transparência ao clicar
+        disabled={isLoading}
       >
-        <Text style={styles.buttonText}>Entrar</Text>
+        {isLoading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Entrar</Text>
+        )}
       </TouchableOpacity>
-      
+
       {/* <Text>Esqueceu a senha? <TouchableOpacity onPress={() => navigation.navigate('EsqueceuSenha')}>
           <Text style={styles.linkText}>Clique aqui</Text>
         </TouchableOpacity> </Text> */}
@@ -80,14 +95,14 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: '#DF6A3F',
   },
-  checkbox: { 
+  checkbox: {
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 20
-    },
-    button: {
+  },
+  button: {
     backgroundColor: '#DF6A3F', // Cor de fundo
     paddingVertical: 12,        // Altura interna (padding top/bottom)
     paddingHorizontal: 20,      // Largura interna
@@ -99,6 +114,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     marginBottom: 15,           // Espaço abaixo
+  },
+  buttonDisabled: {
+    backgroundColor: '#ccc',
   },
   buttonText: {
     color: '#fff',              // Cor do texto

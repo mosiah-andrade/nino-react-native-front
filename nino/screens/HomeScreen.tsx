@@ -1,12 +1,69 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Button } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../contexts/AuthContext';
+import { ocorrenciasApi } from '../services/api';
 
 // Recebe 'navigation' automaticamente porque está registrado no Stack.Screen
 export default function HomeScreen({ navigation }: any) {
+  const { user, logout } = useAuth();
+  const [stats, setStats] = useState({ pendentes: 0, sincronizadas: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const carregarEstatisticas = useCallback(async () => {
+    try {
+      const ocorrencias = await ocorrenciasApi.listar();
+      const pendentes = ocorrencias.filter(oc => oc.statusSync === 'pendente').length;
+      const sincronizadas = ocorrencias.filter(oc => oc.statusSync === 'sincronizado').length;
+      setStats({ pendentes, sincronizadas });
+    } catch (error: any) {
+      console.error('Erro ao carregar estatísticas:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregarEstatisticas();
+  }, [carregarEstatisticas]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await carregarEstatisticas();
+    setRefreshing(false);
+  }, [carregarEstatisticas]);
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Sair',
+      'Deseja realmente sair?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              navigation.replace('Login');
+            } catch (error) {
+              Alert.alert('Erro', 'Não foi possível fazer logout');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
-    <ScrollView style={styles.container} >
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#e66430']} />
+      }
+    >
       {/* Cabeçalho */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Home</Text>
@@ -16,45 +73,60 @@ export default function HomeScreen({ navigation }: any) {
       </View>
       {/* Seção Resumo */}
       <Text style={styles.sectionTitle}>Resumo</Text>
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Pendentes</Text>
-          <Text style={styles.statValue}>3</Text>
+      {isLoading ? (
+        <View style={styles.loadingStats}>
+          <ActivityIndicator size="small" color="#e66430" />
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Sincronizadas</Text>
-          <Text style={styles.statValue}>12</Text>
+      ) : (
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Pendentes</Text>
+            <Text style={styles.statValue}>{stats.pendentes}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Sincronizadas</Text>
+            <Text style={styles.statValue}>{stats.sincronizadas}</Text>
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Seção Ações (Grid) */}
       <Text style={styles.sectionTitle}>Ações</Text>
       <View style={styles.actionsGrid}>
-        
+
         {/* Botão 1 */}
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('Ocorrencias')}
+        >
           <Ionicons name="add" size={28} color="#4a5568" />
           <Text style={styles.actionText}>Registrar{'\n'}Ocorrência</Text>
         </TouchableOpacity>
 
         {/* Botão 2 */}
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('Ocorrencias')}
+        >
           <Ionicons name="document-text-outline" size={24} color="#4a5568" />
           <Text style={styles.actionText}>Minhas{'\n'}Ocorrências</Text>
         </TouchableOpacity>
 
         {/* Botão 3 */}
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={onRefresh}
+        >
           <Ionicons name="refresh" size={24} color="#4a5568" />
           <Text style={styles.actionText}>Sincronizar</Text>
         </TouchableOpacity>
 
         {/* Botão 4 */}
         <TouchableOpacity style={styles.actionButton}
-          onPress={() => navigation.navigate('Login')}
+          onPress={handleLogout}
         >
-          <Ionicons name="person-outline" size={24} color="#4a5568" />
-          <Text style={styles.actionText}>Perfil / Sair</Text>
+          <Ionicons name="log-out-outline" size={24} color="#4a5568" />
+          <Text style={styles.actionText}>Sair</Text>
         </TouchableOpacity>
 
       </View>
@@ -62,13 +134,14 @@ export default function HomeScreen({ navigation }: any) {
   );
 }
 const styles = StyleSheet.create({
-container: { flex: 1, padding: 20, backgroundColor: '#f7fafc' },
- header: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20, marginTop: 40 },
+  container: { flex: 1, padding: 20, backgroundColor: '#f7fafc' },
+  header: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20, marginTop: 40 },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#e66430', flex: 1, textAlign: 'center', marginLeft: 24 }, // Gambiarra visual para centralizar ignorando o ícone
-  
+
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#8d7d6f', marginBottom: 15, marginTop: 10 },
-  
+
   // Estilos do Resumo
+  loadingStats: { height: 80, justifyContent: 'center', alignItems: 'center' },
   statsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   statCard: { width: '48%', backgroundColor: '#fff', padding: 15, borderRadius: 10, elevation: 2 }, // elevation cria a sombra no Android
   statLabel: { color: '#666', fontSize: 14 },
