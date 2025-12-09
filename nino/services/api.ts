@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:4000';
+// URL da API - usar variável de ambiente ou fallback
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://nino-backend-ts-mongo.onrender.com';
+
+// Log para debug - remover depois
+console.log('🔗 API URL:', BASE_URL);
 
 // Interface para respostas de erro
 interface ApiError {
@@ -68,12 +72,30 @@ async function apiRequest<T>(
         ...options.headers,
     };
 
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const url = `${BASE_URL}${endpoint}`;
+    console.log('📡 Fazendo requisição para:', url);
+    console.log('📦 Body:', options.body);
+
+    const response = await fetch(url, {
         ...options,
         headers,
     });
 
+    console.log('📥 Status:', response.status);
+
+    // Verificar se a resposta é JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('❌ Resposta não-JSON recebida:', text.substring(0, 500));
+        throw {
+            message: 'Servidor retornou resposta inválida. Verifique se a API está online.',
+            status: response.status,
+        };
+    }
+
     const data = await response.json();
+    console.log('✅ Resposta:', JSON.stringify(data).substring(0, 200));
 
     if (!response.ok) {
         const error: ApiError = {
