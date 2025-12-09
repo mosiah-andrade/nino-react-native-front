@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -13,56 +13,107 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
+import { authApi } from '../services/api';
 
 interface EditableFieldProps {
     label: string;
     value: string;
     onChangeText: (text: string) => void;
     secureTextEntry?: boolean;
+    editable?: boolean;
 }
 
-const EditableField = ({ label, value, onChangeText, secureTextEntry }: EditableFieldProps) => (
+const EditableField = ({ label, value, onChangeText, secureTextEntry, editable = true }: EditableFieldProps) => (
     <View style={styles.fieldContainer}>
         <Text style={styles.fieldLabel}>{label}</Text>
         <View style={styles.fieldInputContainer}>
             <TextInput
-                style={styles.fieldInput}
+                style={[styles.fieldInput, !editable && styles.fieldInputDisabled]}
                 value={value}
                 onChangeText={onChangeText}
                 secureTextEntry={secureTextEntry}
                 placeholder={label}
                 placeholderTextColor="#ccc"
+                editable={editable}
             />
-            <TouchableOpacity style={styles.editIcon}>
-                <Ionicons name="pencil" size={18} color="#e66430" />
-            </TouchableOpacity>
+            {editable && (
+                <TouchableOpacity style={styles.editIcon}>
+                    <Ionicons name="pencil" size={18} color="#e66430" />
+                </TouchableOpacity>
+            )}
         </View>
     </View>
 );
 
 export default function EditarPerfilScreen() {
     const navigation = useNavigation<any>();
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingData, setIsLoadingData] = useState(true);
 
     const [formData, setFormData] = useState({
         primeiroNome: '',
         sobrenome: '',
         usuario: '',
-        email: user?.email || '',
+        email: '',
         telefone: '',
         senha: '',
     });
 
+    // Carregar dados do perfil ao entrar na tela
+    useEffect(() => {
+        loadProfile();
+    }, []);
+
+    const loadProfile = async () => {
+        try {
+            setIsLoadingData(true);
+            const profile = await authApi.getProfile();
+            setFormData({
+                primeiroNome: profile.primeiroNome || '',
+                sobrenome: profile.sobrenome || '',
+                usuario: profile.usuario || '',
+                email: profile.email || '',
+                telefone: profile.telefone || '',
+                senha: '',
+            });
+        } catch (error) {
+            console.error('Erro ao carregar perfil:', error);
+            // Fallback para dados do contexto
+            if (user) {
+                setFormData({
+                    primeiroNome: user.primeiroNome || '',
+                    sobrenome: user.sobrenome || '',
+                    usuario: user.usuario || '',
+                    email: user.email || '',
+                    telefone: user.telefone || '',
+                    senha: '',
+                });
+            }
+        } finally {
+            setIsLoadingData(false);
+        }
+    };
+
     const handleSave = async () => {
         setIsLoading(true);
         try {
-            // TODO: Implementar atualização no backend
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await authApi.updateProfile({
+                primeiroNome: formData.primeiroNome,
+                sobrenome: formData.sobrenome,
+                usuario: formData.usuario,
+                telefone: formData.telefone,
+                senha: formData.senha || undefined,
+            });
+            
+            // Atualizar dados no contexto
+            await refreshUser();
+            
             Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
             navigation.goBack();
-        } catch (error) {
-            Alert.alert('Erro', 'Não foi possível atualizar o perfil');
+        } catch (error: any) {
+            console.error('Erro ao salvar perfil:', error);
+            Alert.alert('Erro', error.message || 'Não foi possível atualizar o perfil');
         } finally {
             setIsLoading(false);
         }
@@ -84,63 +135,73 @@ export default function EditarPerfilScreen() {
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 <Text style={styles.title}>Editar perfil</Text>
 
-                {/* Avatar */}
-                <View style={styles.avatarContainer}>
-                    <View style={styles.avatar}>
-                        <Ionicons name="person" size={60} color="#e66430" />
+                {isLoadingData ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color="#e66430" />
+                        <Text style={styles.loadingText}>Carregando dados...</Text>
                     </View>
-                    <TouchableOpacity style={styles.editAvatarButton}>
-                        <Ionicons name="pencil" size={14} color="#fff" />
-                    </TouchableOpacity>
-                </View>
+                ) : (
+                    <>
+                        {/* Avatar */}
+                        <View style={styles.avatarContainer}>
+                            <View style={styles.avatar}>
+                                <Ionicons name="person" size={60} color="#e66430" />
+                            </View>
+                            <TouchableOpacity style={styles.editAvatarButton}>
+                                <Ionicons name="pencil" size={14} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
 
-                {/* Campos */}
-                <View style={styles.formContainer}>
-                    <EditableField
-                        label="Primeiro Nome"
-                        value={formData.primeiroNome}
-                        onChangeText={(text) => setFormData({ ...formData, primeiroNome: text })}
-                    />
-                    <EditableField
-                        label="Sobrenome"
-                        value={formData.sobrenome}
-                        onChangeText={(text) => setFormData({ ...formData, sobrenome: text })}
-                    />
-                    <EditableField
-                        label="Usuario"
-                        value={formData.usuario}
-                        onChangeText={(text) => setFormData({ ...formData, usuario: text })}
-                    />
-                    <EditableField
-                        label="Email"
-                        value={formData.email}
-                        onChangeText={(text) => setFormData({ ...formData, email: text })}
-                    />
-                    <EditableField
-                        label="Número de telefone"
-                        value={formData.telefone}
-                        onChangeText={(text) => setFormData({ ...formData, telefone: text })}
-                    />
-                    <EditableField
-                        label="Senha"
-                        value={formData.senha}
-                        onChangeText={(text) => setFormData({ ...formData, senha: text })}
-                        secureTextEntry
-                    />
-                </View>
+                        {/* Campos */}
+                        <View style={styles.formContainer}>
+                            <EditableField
+                                label="Primeiro Nome"
+                                value={formData.primeiroNome}
+                                onChangeText={(text) => setFormData({ ...formData, primeiroNome: text })}
+                            />
+                            <EditableField
+                                label="Sobrenome"
+                                value={formData.sobrenome}
+                                onChangeText={(text) => setFormData({ ...formData, sobrenome: text })}
+                            />
+                            <EditableField
+                                label="Usuário"
+                                value={formData.usuario}
+                                onChangeText={(text) => setFormData({ ...formData, usuario: text })}
+                            />
+                            <EditableField
+                                label="Email"
+                                value={formData.email}
+                                onChangeText={() => {}}
+                                editable={false}
+                            />
+                            <EditableField
+                                label="Número de telefone"
+                                value={formData.telefone}
+                                onChangeText={(text) => setFormData({ ...formData, telefone: text })}
+                            />
+                            <EditableField
+                                label="Nova Senha (deixe vazio para manter)"
+                                value={formData.senha}
+                                onChangeText={(text) => setFormData({ ...formData, senha: text })}
+                                secureTextEntry
+                            />
+                        </View>
 
-                {/* Botão Salvar */}
-                <TouchableOpacity
-                    style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
-                    onPress={handleSave}
-                    disabled={isLoading}
-                >
-                    {isLoading ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <Text style={styles.saveButtonText}>Salvar</Text>
-                    )}
-                </TouchableOpacity>
+                        {/* Botão Salvar */}
+                        <TouchableOpacity
+                            style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+                            onPress={handleSave}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <Text style={styles.saveButtonText}>Salvar</Text>
+                            )}
+                        </TouchableOpacity>
+                    </>
+                )}
 
                 <View style={{ height: 40 }} />
             </ScrollView>
@@ -227,8 +288,22 @@ const styles = StyleSheet.create({
         color: '#333',
         paddingVertical: 8,
     },
+    fieldInputDisabled: {
+        color: '#999',
+        backgroundColor: '#f5f5f5',
+    },
     editIcon: {
         padding: 4,
+    },
+    loadingContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 60,
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 16,
+        color: '#666',
     },
     saveButton: {
         backgroundColor: '#e66430',

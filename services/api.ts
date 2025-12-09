@@ -16,6 +16,16 @@ export interface LoginResponse {
     message: string;
     token: string;
     role: 'operador' | 'chefe' | 'admin';
+    user: UserProfile;
+}
+
+export interface UserProfile {
+    email: string;
+    role: 'operador' | 'chefe' | 'admin';
+    primeiroNome: string;
+    sobrenome: string;
+    usuario: string;
+    telefone: string;
 }
 
 export interface Ocorrencia {
@@ -119,6 +129,23 @@ export const authApi = {
     logout: async (): Promise<{ message: string }> => {
         return apiRequest<{ message: string }>('/auth/logout', {
             method: 'POST',
+        });
+    },
+
+    getProfile: async (): Promise<UserProfile> => {
+        return apiRequest<UserProfile>('/auth/profile');
+    },
+
+    updateProfile: async (data: {
+        primeiroNome?: string;
+        sobrenome?: string;
+        usuario?: string;
+        telefone?: string;
+        senha?: string;
+    }): Promise<{ message: string; user: UserProfile }> => {
+        return apiRequest<{ message: string; user: UserProfile }>('/auth/profile', {
+            method: 'PUT',
+            body: JSON.stringify(data),
         });
     },
 };

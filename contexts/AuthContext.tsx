@@ -1,11 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authApi, LoginResponse } from '../services/api';
+import { authApi, LoginResponse, UserProfile } from '../services/api';
 
-interface User {
-    email: string;
-    role: 'operador' | 'chefe' | 'admin';
-}
+interface User extends UserProfile {}
 
 interface AuthContextData {
     user: User | null;
@@ -14,6 +11,7 @@ interface AuthContextData {
     isAuthenticated: boolean;
     login: (email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
+    refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -52,10 +50,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         try {
             const response: LoginResponse = await authApi.login(email, password);
 
-            const userData: User = {
-                email,
-                role: response.role,
-            };
+            const userData: User = response.user;
 
             // Salvar no AsyncStorage
             await AsyncStorage.setItem('authToken', response.token);
@@ -66,6 +61,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } catch (error: any) {
             console.error('Erro no login:', error);
             throw new Error(error.message || 'Erro ao fazer login');
+        }
+    }
+
+    async function refreshUser(): Promise<void> {
+        try {
+            const userData = await authApi.getProfile();
+            await AsyncStorage.setItem('user', JSON.stringify(userData));
+            setUser(userData);
+        } catch (error) {
+            console.error('Erro ao atualizar dados do usuário:', error);
         }
     }
 
@@ -99,6 +104,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 isAuthenticated: !!token,
                 login,
                 logout,
+                refreshUser,
             }}
         >
             {children}
