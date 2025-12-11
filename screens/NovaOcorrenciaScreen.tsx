@@ -12,12 +12,13 @@ import {
     Image,
     Dimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import MapView, { Marker } from 'react-native-maps';
 import { ocorrenciasApi } from '../services/api';
+import { useNetwork } from '../contexts/NetworkProvider';
 
 const { width } = Dimensions.get('window');
 
@@ -54,6 +55,7 @@ export default function NovaOcorrenciaScreen() {
     const [showViaturaModal, setShowViaturaModal] = useState(false);
     const [showMapModal, setShowMapModal] = useState(false);
     const [isGettingLocation, setIsGettingLocation] = useState(false);
+    const { isOnline } = useNetwork();
 
     const [formData, setFormData] = useState({
         tipo: '',
@@ -285,17 +287,7 @@ export default function NovaOcorrenciaScreen() {
 
     return (
         <View style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#e66430" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Nova Ocorrência</Text>
-                <TouchableOpacity>
-                    <Ionicons name="settings-outline" size={24} color="#e66430" />
-                </TouchableOpacity>
-            </View>
-
+            {/* Header Customizado */}
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Tipo */}
                 <TouchableOpacity
@@ -564,6 +556,9 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#e66430',
     },
+    headerRight: {
+        padding: 4,
+    },
     content: {
         flex: 1,
         padding: 16,
@@ -718,10 +713,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 16,
         paddingTop: 50,
-        paddingBottom: 16,
-        backgroundColor: '#fff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#e0e0e0',
     },
     mapTitle: {
         fontSize: 18,

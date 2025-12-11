@@ -105,13 +105,7 @@ export default function AssinaturaScreen({ visible = true, onClose, onSave }: As
     const content = (
         <View style={styles.container}>
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                    <Ionicons name="close" size={28} color="#333" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Assinatura</Text>
-                <View style={{ width: 28 }} />
-            </View>
+
 
             <View style={styles.content}>
                 <Text style={styles.instructions}>

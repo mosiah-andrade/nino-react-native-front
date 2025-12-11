@@ -100,15 +100,7 @@ export default function DetalheOcorrenciaScreen() {
     return (
         <View style={styles.container}>
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Text style={styles.backText}>← </Text>
-                    <Text style={styles.headerTitle}>Detalhe daOcorrência</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.syncIcon}>
-                    <Ionicons name="sync-outline" size={20} color="#e66430" />
-                </TouchableOpacity>
-            </View>
+
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Tipo */}

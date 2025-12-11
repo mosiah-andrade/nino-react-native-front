@@ -3,9 +3,10 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Text } from 'react-native';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { NetworkProvider } from './contexts/NetworkProvider';
 import LoginScreen from './screens/LoginScreen';
 import HomeScreen from './screens/HomeScreen';
 import OcorrenciaScreen from './screens/OcorrenciaScreen';
@@ -21,6 +22,15 @@ import EditarOcorrenciaScreen from './screens/EditarOcorrenciaScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// Componente para mostrar status da rede no cabeçalho
+function NetworkStatusIndicator() {
+  return (
+    <View style={{ paddingHorizontal: 10 }}>
+      <Ionicons name="wifi" size={20} color="#4caf50" />
+    </View>
+  );
+}
 
 // Componente das ABAS (5 abas: Ocorrências, Registrar, Home, Sincronizar, Perfil)
 function AppTabs() {
@@ -89,36 +99,127 @@ function AppTabs() {
   );
 }
 
-// O App principal controla quem aparece: Login ou Abas
-function AppNavigation() {
+// Stack Navigator para telas que não aparecem nas abas
+function AppStack() {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f7fafc' }}>
         <ActivityIndicator size="large" color="#e66430" />
+        <Text style={{ marginTop: 16, color: '#666', fontSize: 16 }}>Carregando...</Text>
       </View>
     );
   }
 
   return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: '#fff',
+        },
+        headerTintColor: '#e66430',
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+        // headerBackTitleVisible não é suportado no Native Stack
+        // Use headerBackTitle: '' em vez disso
+      }}
+    >
+      {!isAuthenticated ? (
+        // Telas públicas
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+          options={{ headerShown: false }}
+        />
+      ) : (
+        // Telas autenticadas
+        <>
+          {/* Main App com abas */}
+          <Stack.Screen
+            name="MainApp"
+            component={AppTabs}
+            options={{
+              headerShown: false,
+              gestureEnabled: false // Previne voltar para login
+            }}
+          />
+
+          {/* Telas de navegação dentro do app */}
+          <Stack.Screen
+            name="DetalheOcorrencia"
+            component={DetalheOcorrenciaScreen}
+            options={{
+              title: 'Detalhes da Ocorrência',
+              headerBackTitle: '', // Remove o texto do botão voltar
+              headerRight: () => <NetworkStatusIndicator />
+            }}
+          />
+          <Stack.Screen
+            name="NovaOcorrencia"
+            component={NovaOcorrenciaScreen}
+            options={{
+              title: 'Nova Ocorrência',
+              headerBackTitle: '',
+              headerRight: () => <NetworkStatusIndicator />
+            }}
+          />
+          <Stack.Screen
+            name="EditarOcorrencia"
+            component={EditarOcorrenciaScreen}
+            options={{
+              title: 'Editar Ocorrência',
+              headerBackTitle: '',
+              headerRight: () => <NetworkStatusIndicator />
+            }}
+          />
+          <Stack.Screen
+            name="SucessoOcorrencia"
+            component={SucessoOcorrenciaScreen}
+            options={{
+              headerShown: false,
+              gestureEnabled: false
+            }}
+          />
+          <Stack.Screen
+            name="Configuracoes"
+            component={ConfiguracoesScreen}
+            options={{
+              title: 'Configurações',
+              headerBackTitle: '',
+              headerRight: () => <NetworkStatusIndicator />
+            }}
+          />
+          <Stack.Screen
+            name="EditarPerfil"
+            component={EditarPerfilScreen}
+            options={{
+              title: 'Editar Perfil',
+              headerBackTitle: '',
+              headerRight: () => <NetworkStatusIndicator />
+            }}
+          />
+          <Stack.Screen
+            name="Assinatura"
+            component={AssinaturaScreen}
+            options={{
+              title: 'Assinatura',
+              headerBackTitle: '',
+              headerRight: () => <NetworkStatusIndicator />
+            }}
+          />
+        </>
+      )}
+    </Stack.Navigator>
+  );
+}
+
+// Componente principal do app
+function MainApp() {
+  return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {/* Tela de Login */}
-        <Stack.Screen name="Login" component={LoginScreen} />
-
-        {/* App com Abas (Home, Ocorrencias, Registrar, Sincronizar, Perfil) */}
-        <Stack.Screen name="MainApp" component={AppTabs} />
-
-        {/* Telas de Detalhe (sem abas) */}
-        <Stack.Screen name="DetalheOcorrencia" component={DetalheOcorrenciaScreen} />
-        <Stack.Screen name="NovaOcorrencia" component={NovaOcorrenciaScreen} />
-        <Stack.Screen name="EditarOcorrencia" component={EditarOcorrenciaScreen} />
-        <Stack.Screen name="SucessoOcorrencia" component={SucessoOcorrenciaScreen} />
-        <Stack.Screen name="Configuracoes" component={ConfiguracoesScreen} />
-        <Stack.Screen name="EditarPerfil" component={EditarPerfilScreen} />
-        <Stack.Screen name="Assinatura" component={AssinaturaScreen} />
-      </Stack.Navigator>
+      <AppStack />
     </NavigationContainer>
   );
 }
@@ -126,7 +227,9 @@ function AppNavigation() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppNavigation />
+      <NetworkProvider>
+        <MainApp />
+      </NetworkProvider>
     </AuthProvider>
   );
 }

@@ -7,15 +7,18 @@ import {
     ScrollView,
     ActivityIndicator,
     RefreshControl,
+    Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { ocorrenciasApi } from '../services/api';
+import DatabaseService from '../services/database';
 
 interface SyncStats {
     formularios: number;
     imagens: number;
     videos: number;
+    ultimaSincronizacao: string | null;
 }
 
 export default function SincronizacaoScreen() {
@@ -28,20 +31,31 @@ export default function SincronizacaoScreen() {
         formularios: 0,
         imagens: 0,
         videos: 0,
+        ultimaSincronizacao: null,
     });
+
+    const verificarConexao = useCallback(async () => {
+        const online = await DatabaseService.verificarConexao();
+        setIsOnline(online);
+        return online;
+    }, []);
 
     const carregarDados = useCallback(async () => {
         try {
-            const pendentes = await ocorrenciasApi.listarPendentes();
+            await verificarConexao();
+            const pendentes = await DatabaseService.listarPendentes();
+            const ultimaSync = await DatabaseService.obterUltimaSincronizacao();
+
             setStats({
                 formularios: pendentes.length,
                 imagens: pendentes.reduce((acc, oc) => acc + (oc.fotos?.length || 0), 0),
                 videos: 0,
+                ultimaSincronizacao: ultimaSync,
             });
         } catch (error) {
             console.error('Erro ao carregar dados:', error);
         }
-    }, []);
+    }, [verificarConexao]);
 
     useEffect(() => {
         carregarDados();
@@ -57,32 +71,78 @@ export default function SincronizacaoScreen() {
         setIsSyncing(true);
         setProgress(0);
 
-        // Simular progresso
+        // Simular progresso inicial
         const interval = setInterval(() => {
             setProgress((prev) => {
-                if (prev >= 100) {
+                if (prev >= 90) {
                     clearInterval(interval);
-                    return 100;
+                    return 90;
                 }
                 return prev + 10;
             });
         }, 300);
 
         try {
-            // TODO: Implementar sincronização real
-            await new Promise((resolve) => setTimeout(resolve, 3000));
+            // Verificar conexão
+            const online = await verificarConexao();
+            if (!online) {
+                clearInterval(interval);
+                Alert.alert('Sem Conexão', 'Verifique sua conexão com a internet e tente novamente.');
+                setIsSyncing(false);
+                setProgress(0);
+                return;
+            }
+
+            // Executar sincronização real
+            const resultado = await ocorrenciasApi.sincronizar();
+
             clearInterval(interval);
             setProgress(100);
 
-            setTimeout(() => {
-                navigation.navigate('SucessoOcorrencia');
-            }, 500);
-        } catch (error) {
+            // Atualizar dados
+            await carregarDados();
+
+            // Mostrar resultado
+            Alert.alert(
+                'Sincronização Concluída',
+                resultado.message,
+                [
+                    {
+                        text: 'OK',
+                        onPress: () => {
+                            if (resultado.salvas > 0) {
+                                navigation.navigate('SucessoOcorrencia');
+                            }
+                        }
+                    }
+                ]
+            );
+
+        } catch (error: any) {
             clearInterval(interval);
-            console.error('Erro na sincronização:', error);
+            setProgress(0);
+
+            Alert.alert(
+                'Erro na Sincronização',
+                error.message || 'Não foi possível completar a sincronização. Tente novamente.'
+            );
         } finally {
             setIsSyncing(false);
         }
+    };
+
+    const formatarData = (dataString: string | null) => {
+        if (!dataString) return 'Nunca';
+
+        const data = new Date(dataString);
+        const hoje = new Date();
+
+        if (data.toDateString() === hoje.toDateString()) {
+            return `Hoje às ${data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+        }
+
+        return data.toLocaleDateString('pt-BR') + ' ' +
+            data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     };
 
     return (
@@ -110,7 +170,21 @@ export default function SincronizacaoScreen() {
                         <View style={[styles.statusDot, isOnline ? styles.online : styles.offline]} />
                         <Text style={styles.statusText}>{isOnline ? 'Online' : 'Offline'}</Text>
                     </View>
-                    <Text style={styles.statusSubtext}>{isOnline ? 'Conectado' : 'Desconectado'}</Text>
+                    <Text style={styles.statusSubtext}>
+                        {isOnline ? 'Conectado à internet' : 'Modo offline ativo'}
+                    </Text>
+                </View>
+
+                {/* Última Sincronização */}
+                <Text style={styles.sectionTitle}>Última Sincronização</Text>
+                <View style={styles.lastSyncContainer}>
+                    <Ionicons name="time-outline" size={24} color="#666" />
+                    <View style={styles.lastSyncInfo}>
+                        <Text style={styles.lastSyncLabel}>Data e Hora</Text>
+                        <Text style={styles.lastSyncValue}>
+                            {formatarData(stats.ultimaSincronizacao)}
+                        </Text>
+                    </View>
                 </View>
 
                 {/* Registros Pendentes */}
@@ -133,10 +207,12 @@ export default function SincronizacaoScreen() {
                     </View>
 
                     <View style={styles.pendenteItem}>
-                        <Ionicons name="videocam-outline" size={24} color="#e66430" />
+                        <Ionicons name="warning-outline" size={24} color="#e66430" />
                         <View style={styles.pendenteInfo}>
-                            <Text style={styles.pendenteLabel}>Vídeos</Text>
-                            <Text style={styles.pendenteValue}>{stats.videos} vídeos</Text>
+                            <Text style={styles.pendenteLabel}>Status</Text>
+                            <Text style={styles.pendenteValue}>
+                                {stats.formularios > 0 ? 'Pendente de envio' : 'Tudo sincronizado'}
+                            </Text>
                         </View>
                     </View>
                 </View>
@@ -145,25 +221,53 @@ export default function SincronizacaoScreen() {
                 <Text style={styles.sectionTitle}>Progresso da Sincronização</Text>
                 <View style={styles.progressContainer}>
                     <Text style={styles.progressText}>
-                        {isSyncing ? 'Sincronizando dados...' : 'Aguardando sincronização'}
+                        {isSyncing ? 'Sincronizando dados...' : 'Pronto para sincronizar'}
                     </Text>
                     <View style={styles.progressBar}>
                         <View style={[styles.progressFill, { width: `${progress}%` }]} />
                     </View>
-                    <Text style={styles.progressPercent}>{progress}% concluído</Text>
+                    <Text style={styles.progressPercent}>{progress}%</Text>
                 </View>
+
+                {/* Informações Offline */}
+                {!isOnline && (
+                    <View style={styles.offlineWarning}>
+                        <Ionicons name="warning" size={20} color="#f59e0b" />
+                        <Text style={styles.offlineWarningText}>
+                            Você está offline. Conecte-se à internet para sincronizar.
+                        </Text>
+                    </View>
+                )}
 
                 {/* Botão Sincronizar */}
                 <TouchableOpacity
-                    style={[styles.syncButton, isSyncing && styles.syncButtonDisabled]}
+                    style={[
+                        styles.syncButton,
+                        (isSyncing || !isOnline) && styles.syncButtonDisabled
+                    ]}
                     onPress={handleSincronizar}
-                    disabled={isSyncing}
+                    disabled={isSyncing || !isOnline}
                 >
                     {isSyncing ? (
                         <ActivityIndicator color="#fff" />
                     ) : (
-                        <Text style={styles.syncButtonText}>Sincronizar Agora</Text>
+                        <>
+                            <Ionicons name="sync" size={20} color="#fff" style={{ marginRight: 8 }} />
+                            <Text style={styles.syncButtonText}>Sincronizar Agora</Text>
+                        </>
                     )}
+                </TouchableOpacity>
+
+                {/* Botão Forçar Atualização */}
+                <TouchableOpacity
+                    style={styles.refreshButton}
+                    onPress={onRefresh}
+                    disabled={refreshing}
+                >
+                    <Ionicons name="refresh" size={20} color="#e66430" style={{ marginRight: 8 }} />
+                    <Text style={styles.refreshButtonText}>
+                        {refreshing ? 'Atualizando...' : 'Atualizar Dados'}
+                    </Text>
                 </TouchableOpacity>
 
                 <View style={{ height: 40 }} />
@@ -216,6 +320,7 @@ const styles = StyleSheet.create({
     statusRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        marginBottom: 4,
     },
     statusDot: {
         width: 12,
@@ -240,6 +345,28 @@ const styles = StyleSheet.create({
         marginTop: 4,
         marginLeft: 20,
     },
+    lastSyncContainer: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    lastSyncInfo: {
+        marginLeft: 12,
+        flex: 1,
+    },
+    lastSyncLabel: {
+        fontSize: 14,
+        color: '#8d7d6f',
+        marginBottom: 2,
+    },
+    lastSyncValue: {
+        fontSize: 15,
+        fontWeight: '500',
+        color: '#333',
+    },
     pendentesContainer: {
         backgroundColor: '#fff',
         borderRadius: 12,
@@ -255,22 +382,23 @@ const styles = StyleSheet.create({
     },
     pendenteInfo: {
         marginLeft: 12,
+        flex: 1,
     },
     pendenteLabel: {
         fontSize: 14,
         fontWeight: '600',
         color: '#333',
+        marginBottom: 2,
     },
     pendenteValue: {
         fontSize: 14,
         color: '#666',
-        marginTop: 2,
     },
     progressContainer: {
         backgroundColor: '#fff',
         borderRadius: 12,
         padding: 16,
-        marginBottom: 24,
+        marginBottom: 16,
     },
     progressText: {
         fontSize: 14,
@@ -282,6 +410,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#e0e0e0',
         borderRadius: 4,
         overflow: 'hidden',
+        marginBottom: 8,
     },
     progressFill: {
         height: '100%',
@@ -291,20 +420,53 @@ const styles = StyleSheet.create({
     progressPercent: {
         fontSize: 14,
         color: '#666',
-        marginTop: 8,
         textAlign: 'right',
+    },
+    offlineWarning: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fffbeb',
+        borderWidth: 1,
+        borderColor: '#fde68a',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 16,
+    },
+    offlineWarningText: {
+        fontSize: 14,
+        color: '#92400e',
+        marginLeft: 8,
+        flex: 1,
     },
     syncButton: {
         backgroundColor: '#e66430',
         paddingVertical: 16,
         borderRadius: 8,
         alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        marginBottom: 12,
     },
     syncButtonDisabled: {
-        opacity: 0.6,
+        backgroundColor: '#ccc',
     },
     syncButtonText: {
         color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    refreshButton: {
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+        paddingVertical: 16,
+        borderRadius: 8,
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'center',
+    },
+    refreshButtonText: {
+        color: '#e66430',
         fontSize: 16,
         fontWeight: '600',
     },

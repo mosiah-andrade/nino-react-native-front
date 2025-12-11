@@ -59,15 +59,6 @@ export default function ConfiguracoesScreen() {
     return (
         <View style={styles.container}>
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#e66430" />
-                </TouchableOpacity>
-                <View style={{ width: 24 }} />
-                <TouchableOpacity>
-                    <Ionicons name="settings-outline" size={24} color="#e66430" />
-                </TouchableOpacity>
-            </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 <Text style={styles.title}>Configurações</Text>
